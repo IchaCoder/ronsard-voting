@@ -1,71 +1,81 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import Link from "next/link"
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import Link from "next/link";
+import { createClient } from "@/utils/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle } from "lucide-react"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle } from "lucide-react";
+import { User } from "@supabase/supabase-js";
 
 const forgotPasswordSchema = z
   .object({
-    email: z.string().email("Please enter a valid email address"),
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z
-      .string()
-      .min(5, "Password must be at least 8 characters"),
+    newPassword: z.string().min(5, "Password must be at least 5 characters"),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
-  })
+  });
 
-type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
+type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 
-export function ForgotPasswordForm() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+type ForgotPasswordFormProps = {
+  user: User | null;
+};
+
+export function ForgotPasswordForm(props: ForgotPasswordFormProps) {
+  const { user } = props;
+
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     watch,
   } = useForm<ForgotPasswordFormData>({
     resolver: zodResolver(forgotPasswordSchema),
-  })
+  });
 
-  const newPassword = watch("newPassword")
+  const supabase = createClient();
+  const { toast } = useToast();
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
-    setIsLoading(true)
-    setError(null)
+    setError(null);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const { data: userData, error } = await supabase.auth.updateUser({
+        password: data.newPassword,
+        data: {
+          isDefaultPasswordChanged: true, // Mark that the default password has been changed
+        },
+      });
 
-      console.log("Password reset:", {
-        email: data.email,
-        currentPassword: data.currentPassword,
-        newPassword: data.newPassword,
-      })
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message || "Try a different password",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      setIsSuccess(true)
+      // router.push("/login");
+      setIsSuccess(true);
     } catch (err) {
-      setError("Failed to reset password. Please check your current password and try again.")
-    } finally {
-      setIsLoading(false)
+      setError("Failed to reset password. Please check your current password and try again.");
     }
-  }
+  };
 
   if (isSuccess) {
     return (
@@ -84,14 +94,16 @@ export function ForgotPasswordForm() {
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   return (
     <Card className="w-full">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Reset Your Password</CardTitle>
-        <CardDescription>Update your Ecole Ronsard account password</CardDescription>
+        <CardDescription>
+          Update your Ecole Ronsard password for <span className="font-bold">{user?.email}</span>
+        </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
@@ -100,30 +112,6 @@ export function ForgotPasswordForm() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              {...register("email")}
-              className={errors.email ? "border-red-500" : ""}
-            />
-            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
-            <Input
-              id="currentPassword"
-              type="password"
-              placeholder="Enter your current password"
-              {...register("currentPassword")}
-              className={errors.currentPassword ? "border-red-500" : ""}
-            />
-            {errors.currentPassword && <p className="text-sm text-red-500">{errors.currentPassword.message}</p>}
-          </div>
 
           <div className="space-y-2">
             <Label htmlFor="newPassword">New Password</Label>
@@ -151,8 +139,8 @@ export function ForgotPasswordForm() {
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-4">
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Updating Password..." : "Update Password"}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Updating Password..." : "Update Password"}
           </Button>
 
           <div className="text-center">
@@ -163,5 +151,5 @@ export function ForgotPasswordForm() {
         </CardFooter>
       </form>
     </Card>
-  )
+  );
 }
