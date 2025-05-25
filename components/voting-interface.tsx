@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 // Voting schedule configuration - Update these times as needed
 const VOTING_CONFIG = {
   startTime: new Date("2025-05-25T03:00:00"), // December 20, 2024 at 8:00 AM
-  endTime: new Date("2025-05-25T23:00:00"), // December 20, 2024 at 5:00 PM
+  endTime: new Date("2025-05-25T24:00:00"), // December 20, 2024 at 5:00 PM
 };
 
 // Create validation schema dynamically based on portfolios
@@ -50,8 +50,8 @@ interface TimeRemaining {
 }
 
 type VotingInterfaceProps = {
-  user: User | null;
   candidates: CandidateType[];
+  pin: string;
 };
 
 interface GroupedCandidateType {
@@ -59,7 +59,7 @@ interface GroupedCandidateType {
   candidates: CandidateType[];
 }
 
-export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
+export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, number>>({});
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -189,14 +189,13 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
   };
 
   const confirmSubmission = async () => {
-    setShowConfirmation(false);
-
     setIsLoading(true);
     try {
       // get user data
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      console.log("User data:", userData.user);
-      if (userData && userData.user?.user_metadata?.hasVoted) {
+      const { data: userData, error: userError } = await supabase.from("users").select("*").eq("pin", pin).single();
+      console.log("User data:", userData);
+
+      if (userData && userData.has_voted) {
         toast({
           title: "Already Voted",
           description: "You have already submitted your votes. You cannot vote again.",
@@ -216,11 +215,16 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
 
       if (success) {
         setIsSubmitted(true);
+
         setSelectedCandidates({}); // Clear selections after submission
-        // Update the user metadata to indicate voting has been completed
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: { hasVoted: true },
-        });
+        // Update has_voted status to true
+        const { data: updateData, error: updateError } = await supabase
+          .from("users")
+          .update({ has_voted: true })
+          .eq("pin", pin)
+          .select("*")
+          .single();
+
         if (updateError) {
           toast({
             title: "Error",
@@ -228,6 +232,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
             variant: "destructive",
           });
         }
+        setShowConfirmation(false);
       }
       setIsLoading(false);
     } catch (error) {
@@ -384,13 +389,6 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
     );
   };
 
-  const logOut = async () => {
-    let { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Error logging out:", error);
-    }
-  };
-
   if (isSubmitted) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -422,7 +420,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                 </div>
               </div>
               <p className="text-sm text-gray-500 mt-4">Results will be announced after the voting period ends.</p>
-              <Button variant={"ghost"} size={"lg"} className="mt-4" onClick={logOut}>
+              <Button variant={"ghost"} size={"lg"} className="mt-4">
                 <Link href="/login">Go Home</Link>
               </Button>
             </div>
@@ -509,7 +507,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                             </div>
                           )}
                           <div className="text-center space-y-3">
-                            <div className="relative mx-auto w-20 h-20">
+                            <div className="relative mx-auto w-40 h-40">
                               <img
                                 src={candidate.image || "/placeholder.svg"}
                                 alt={`${candidate.firstName} ${candidate.lastName}`}
@@ -560,12 +558,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                     </div>
                   )}
 
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={!isComplete || isSubmitting || user?.user_metadata?.hasVoted}
-                    className="px-8"
-                  >
+                  <Button type="submit" size="lg" disabled={!isComplete || isSubmitting} className="px-8">
                     {isSubmitting ? "Submitting..." : "Submit My Votes"}
                   </Button>
 

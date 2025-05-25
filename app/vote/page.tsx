@@ -6,23 +6,24 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-export default async function VotePage() {
+type Props = {
+  searchParams: Promise<{
+    [key: string]: string | string[] | undefined;
+  }>;
+};
+
+export default async function VotePage({ searchParams }: Props) {
+  // get query params
+  const { pin } = await searchParams;
+
   const supabase = await createClientServer();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  console.log("User data:", user);
 
   const { data: candidatesData, error: candidatesError } = await supabase.from("candidates").select("*");
 
-  if (!user) {
+  if (!pin) {
     redirect("/login");
   }
 
-  if (user?.user_metadata?.isDefaultPasswordChanged !== true) {
-    redirect("/change-password");
-  }
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -54,7 +55,7 @@ export default async function VotePage() {
           </p>
         </div>
         <Suspense fallback={<Loading />}>
-          <VotingInterface user={user} candidates={candidatesData as CandidateType[]} />
+          <VotingInterface pin={pin as string} candidates={candidatesData as CandidateType[]} />
         </Suspense>
       </main>
     </div>

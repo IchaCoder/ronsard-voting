@@ -8,3 +8,11 @@ export type CandidateType = {
   id?: number;
   votes: number;
 };
+
+export type UserType = {
+  id?: number;
+  pin: string;
+  has_voted: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
