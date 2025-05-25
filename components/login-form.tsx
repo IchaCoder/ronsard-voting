@@ -45,10 +45,8 @@ export function LoginForm() {
 
     try {
       // Here you would implement the PIN authentication logic
-      console.log("Student login with PIN:", { pin: data.pin });
       // search for user by PIN
       const { data: user, error } = await supabase.from("users").select("*").eq("pin", data.pin).single();
-      console.log("User data:", user);
 
       if (error) {
         toast({

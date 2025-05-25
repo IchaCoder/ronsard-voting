@@ -16,7 +16,6 @@ export const voteAction = async (selection: Record<string, number>) => {
       id: candidateId,
       portfolio_id: portfolioId,
     }));
-    console.log("Updates to be made:", updates);
 
     // Process each update
     for (const update of updates) {

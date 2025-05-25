@@ -193,7 +193,6 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
     try {
       // get user data
       const { data: userData, error: userError } = await supabase.from("users").select("*").eq("pin", pin).single();
-      console.log("User data:", userData);
 
       if (userData && userData.has_voted) {
         toast({
