@@ -1,6 +1,7 @@
 import Loading from "@/components/loading";
 import { VotingInterface } from "@/components/voting-interface";
 import { createClientServer } from "@/utils/supabase/server";
+import { CandidateType } from "@/utils/types";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -11,6 +12,8 @@ export default async function VotePage() {
     data: { user },
     error,
   } = await supabase.auth.getUser();
+
+  const { data: candidatesData, error: candidatesError } = await supabase.from("candidates").select("*");
 
   if (!user) {
     redirect("/login");
@@ -50,7 +53,7 @@ export default async function VotePage() {
           </p>
         </div>
         <Suspense fallback={<Loading />}>
-          <VotingInterface user={user} />
+          <VotingInterface user={user} candidates={candidatesData as CandidateType[]} />
         </Suspense>
       </main>
     </div>

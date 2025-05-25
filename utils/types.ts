@@ -5,4 +5,5 @@ export type CandidateType = {
   portfolio: string;
   image: string;
   created_at?: string;
+  id?: number;
 };

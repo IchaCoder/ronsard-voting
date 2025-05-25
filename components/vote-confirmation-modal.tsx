@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   Dialog,
@@ -7,32 +7,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertTriangle } from "lucide-react"
-
-interface Candidate {
-  id: string
-  firstName: string
-  lastName: string
-  image: string
-  bio: string
-}
-
-interface Portfolio {
-  id: string
-  title: string
-  description: string
-  candidates: Candidate[]
-}
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+import { VotingFormData } from "./voting-interface";
 
 interface VoteConfirmationModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  selections: Record<string, string>
-  portfolios: Portfolio[]
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  selections: Record<string, number>;
+  portfolios: VotingFormData[];
 }
 
 export function VoteConfirmationModal({
@@ -43,12 +29,13 @@ export function VoteConfirmationModal({
   portfolios,
 }: VoteConfirmationModalProps) {
   const getSelectedCandidateInfo = (portfolioId: string) => {
-    const candidateId = selections[portfolioId]
-    if (!candidateId) return null
+    const candidateId = selections[portfolioId];
+    if (!candidateId) return null;
 
-    const portfolio = portfolios.find((p) => p.id === portfolioId)
-    return portfolio?.candidates.find((c) => c.id === candidateId)
-  }
+    const portfolio = portfolios.find((p) => p.id === portfolioId);
+    // @ts-expect-error
+    return portfolio?.candidates.find((c) => c.id === candidateId);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -74,7 +61,7 @@ export function VoteConfirmationModal({
             <h3 className="font-semibold mb-3">Your Selections:</h3>
             <div className="space-y-3">
               {portfolios.map((portfolio) => {
-                const candidate = getSelectedCandidateInfo(portfolio.id)
+                const candidate = getSelectedCandidateInfo(portfolio.id);
                 return candidate ? (
                   <div key={portfolio.id} className="flex items-center gap-3">
                     <img
@@ -89,7 +76,7 @@ export function VoteConfirmationModal({
                       </div>
                     </div>
                   </div>
-                ) : null
+                ) : null;
               })}
             </div>
           </div>
@@ -103,5 +90,5 @@ export function VoteConfirmationModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

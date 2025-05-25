@@ -11,119 +11,30 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock, Users, AlertCircle } from "lucide-react";
 import { VoteConfirmationModal } from "@/components/vote-confirmation-modal";
 import { User } from "@supabase/supabase-js";
+import { CandidateType } from "@/utils/types";
+import { portfoliosData } from "./data";
+import { Categories } from "@/utils/enums";
 
 // Voting schedule configuration - Update these times as needed
 const VOTING_CONFIG = {
-  startTime: new Date("2025-05-24T08:00:00"), // December 20, 2024 at 8:00 AM
-  endTime: new Date("2025-05-24T17:00:00"), // December 20, 2024 at 5:00 PM
+  startTime: new Date("2025-05-25T03:00:00"), // December 20, 2024 at 8:00 AM
+  endTime: new Date("2025-05-25T17:00:00"), // December 20, 2024 at 5:00 PM
 };
 
-// Mock data for portfolios and candidates
-const portfoliosData = [
-  {
-    id: "student-council-president",
-    title: "Student Council President",
-    description: "Lead the student body and represent student interests",
-    candidates: [
-      {
-        id: "sarah-johnson",
-        firstName: "Sarah",
-        lastName: "Johnson",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Experienced leader with a passion for student advocacy and positive change.",
-      },
-      {
-        id: "michael-chen",
-        firstName: "Michael",
-        lastName: "Chen",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Dedicated to improving school facilities and student life experiences.",
-      },
-      {
-        id: "emma-williams",
-        firstName: "Emma",
-        lastName: "Williams",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Committed to fostering inclusivity and academic excellence for all students.",
-      },
-    ],
-  },
-  {
-    id: "sports-captain",
-    title: "Sports Captain",
-    description: "Organize and lead school sports activities and competitions",
-    candidates: [
-      {
-        id: "david-rodriguez",
-        firstName: "David",
-        lastName: "Rodriguez",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Varsity athlete with strong leadership skills and team spirit.",
-      },
-      {
-        id: "lisa-thompson",
-        firstName: "Lisa",
-        lastName: "Thompson",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Multi-sport athlete dedicated to promoting fitness and teamwork.",
-      },
-    ],
-  },
-  {
-    id: "head-boy-girl",
-    title: "Head Boy/Girl",
-    description: "Represent the school at official events and ceremonies",
-    candidates: [
-      {
-        id: "alex-parker",
-        firstName: "Alex",
-        lastName: "Parker",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Outstanding academic record with excellent communication skills.",
-      },
-      {
-        id: "jordan-smith",
-        firstName: "Jordan",
-        lastName: "Smith",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Natural leader with a strong commitment to school values and traditions.",
-      },
-    ],
-  },
-  {
-    id: "secretary",
-    title: "Secretary",
-    description: "Maintain records and coordinate student council meetings",
-    candidates: [
-      {
-        id: "maya-patel",
-        firstName: "Maya",
-        lastName: "Patel",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Highly organized with excellent attention to detail and communication skills.",
-      },
-      {
-        id: "james-wilson",
-        firstName: "James",
-        lastName: "Wilson",
-        image: "/placeholder.svg?height=120&width=120",
-        bio: "Reliable and efficient with strong administrative and organizational abilities.",
-      },
-    ],
-  },
-];
-
 // Create validation schema dynamically based on portfolios
-const createVotingSchema = () => {
-  const schemaObject: Record<string, z.ZodString> = {};
-  portfoliosData.forEach((portfolio) => {
-    schemaObject[portfolio.id] = z.string().min(1, `Please select a candidate for ${portfolio.title}`);
+const createVotingSchema = (portfolios: any[]) => {
+  const schemaObject: Record<string, any> = {};
+  portfolios.forEach((portfolio) => {
+    schemaObject[portfolio.id] = z.number().min(1, `Please select a candidate for ${portfolio.title}`);
   });
   return z.object(schemaObject);
 };
 
-const votingSchema = createVotingSchema();
-type VotingFormData = z.infer<typeof votingSchema>;
+// Initialize with mock data, will be updated when real data is available
+const initialSchema = createVotingSchema(portfoliosData);
+
+// This will be updated when real data is available
+export type VotingFormData = z.infer<typeof initialSchema>;
 
 type VotingStatus = "not-started" | "active" | "ended";
 
@@ -136,16 +47,60 @@ interface TimeRemaining {
 
 type VotingInterfaceProps = {
   user: User | null;
+  candidates: CandidateType[];
 };
 
-export function VotingInterface({ user }: VotingInterfaceProps) {
-  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({});
+export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
+  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [votingStatus, setVotingStatus] = useState<VotingStatus>("not-started");
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [votingSchema, setVotingSchema] = useState(initialSchema);
+
+  interface GroupedCandidateType {
+    id: string;
+    candidates: CandidateType[];
+  }
+
+  const [groupedCandidates, setGroupedCandidates] = useState<GroupedCandidateType[]>([]);
+
+  // Transform candidates into grouped format by portfolio
+  useEffect(() => {
+    if (!candidates || candidates.length === 0) return;
+
+    // Group candidates by portfolio
+    const portfolioGroups: Record<string, CandidateType[]> = {};
+
+    candidates.forEach((candidate) => {
+      const portfolio = candidate.portfolio;
+      if (!portfolioGroups[portfolio]) {
+        portfolioGroups[portfolio] = [];
+      }
+      portfolioGroups[portfolio].push(candidate);
+    });
+
+    // Convert to array format
+    const groupedArray = Object.entries(portfolioGroups).map(([portfolio, candidates]) => ({
+      id: portfolio,
+      candidates,
+    }));
+
+    setGroupedCandidates(groupedArray);
+
+    // Update validation schema based on active portfolios
+    const activePortfolioData = groupedArray.map((group) => ({
+      id: group.id,
+      title: group.id,
+      description: `Vote for the ${group.id}`,
+    }));
+
+    if (activePortfolioData.length > 0) {
+      setVotingSchema(createVotingSchema(activePortfolioData));
+    }
+  }, [candidates]);
 
   const {
     handleSubmit,
@@ -154,6 +109,8 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
     trigger,
   } = useForm<VotingFormData>({
     resolver: zodResolver(votingSchema),
+    // Update form schema when it changes
+    context: { schema: votingSchema },
   });
 
   // Update time and voting status every second
@@ -209,7 +166,7 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
     return parts.join(" ") || "0s";
   };
 
-  const handleCandidateSelect = async (portfolioId: string, candidateId: string) => {
+  const handleCandidateSelect = async (portfolioId: string, candidateId: number) => {
     if (votingStatus !== "active") return;
 
     const newSelections = { ...selectedCandidates, [portfolioId]: candidateId };
@@ -220,6 +177,8 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
 
   const onSubmit = async (data: VotingFormData) => {
     if (votingStatus !== "active") return;
+    // Log the submission data
+    console.log("Form submission data:", data);
     setShowConfirmation(true);
   };
 
@@ -229,9 +188,13 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
 
     try {
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // await new Promise((resolve) => setTimeout(resolve, 2000));
 
+      // Log the votes and the active portfolios for debugging
       console.log("Votes submitted:", selectedCandidates);
+      console.log("Using grouped candidates:", groupedCandidates);
+      console.log("Transformed to active portfolios:", activePortfolios);
+
       setIsSubmitted(true);
     } catch (error) {
       console.error("Failed to submit votes:", error);
@@ -242,14 +205,56 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
 
   const getSelectedCandidateInfo = (portfolioId: string) => {
     const candidateId = selectedCandidates[portfolioId];
+
     if (!candidateId) return null;
 
-    const portfolio = portfoliosData.find((p) => p.id === portfolioId);
-    return portfolio?.candidates.find((c) => c.id === candidateId);
+    // Try finding in grouped candidates first (real data)
+    const realPortfolio = groupedCandidates.find((p) => p.id === portfolioId);
+    if (realPortfolio) {
+      const foundCandidate = realPortfolio.candidates.find(
+        (c) =>
+          // Use either the id directly or create one from first and last name
+          c.id === candidateId
+      );
+
+      if (foundCandidate) {
+        // Return in a compatible format
+        return {
+          id:
+            foundCandidate.id || `${foundCandidate.first_name.toLowerCase()}-${foundCandidate.last_name.toLowerCase()}`,
+          firstName: foundCandidate.first_name,
+          lastName: foundCandidate.last_name,
+          image: foundCandidate.image,
+          middleName: foundCandidate.middle_name || "",
+        };
+      }
+    }
+
+    return null; // Fallback if not found
   };
 
   const totalSelections = Object.keys(selectedCandidates).length;
-  const totalPortfolios = portfoliosData.length;
+  // Use real data if available, otherwise fall back to mock data
+  const activePortfolios =
+    groupedCandidates.length > 0
+      ? groupedCandidates.map((group) => {
+          // Convert to a format compatible with portfolio data structure
+          return {
+            id: group.id,
+            title: group.id, // Use portfolio name as title
+            description: `Vote for the ${group.id}`,
+            candidates: group.candidates.map((candidate) => ({
+              id: candidate.id,
+              firstName: candidate.first_name,
+              lastName: candidate.last_name,
+              image: candidate.image,
+              middleName: candidate.middle_name || "",
+            })),
+          };
+        })
+      : [];
+
+  const totalPortfolios = activePortfolios.length;
   const isComplete = totalSelections === totalPortfolios;
 
   // Voting Status Component
@@ -361,13 +366,15 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-6">
                 <h3 className="font-semibold text-green-800 mb-2">Your Selections:</h3>
                 <div className="space-y-2">
-                  {portfoliosData.map((portfolio) => {
+                  {activePortfolios.map((portfolio) => {
                     const candidate = getSelectedCandidateInfo(portfolio.id);
                     return candidate ? (
                       <div key={portfolio.id} className="flex justify-between text-sm">
-                        <span className="text-green-700">{portfolio.title}:</span>
+                        <span className="text-green-700">
+                          {Categories[portfolio.title as keyof typeof Categories]}:
+                        </span>
                         <span className="font-medium text-green-800">
-                          {candidate.firstName} {candidate.lastName}
+                          {candidate.firstName} {candidate.middleName || ""} {candidate.lastName}
                         </span>
                       </div>
                     ) : null;
@@ -417,13 +424,14 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
           </Card>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {portfoliosData.map((portfolio) => (
+            {activePortfolios.map((portfolio) => (
               <Card key={portfolio.id} className="overflow-hidden">
                 <CardHeader className="bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl">{portfolio.title}</CardTitle>
-                      <CardDescription className="mt-1">{portfolio.description}</CardDescription>
+                      <CardTitle className="text-xl">
+                        {Categories[portfolio.title as keyof typeof Categories]}
+                      </CardTitle>
                     </div>
                     {selectedCandidates[portfolio.id] && (
                       <Badge className="bg-green-100 text-green-800">
@@ -434,7 +442,7 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
                   </div>
                   {errors[portfolio.id] && (
                     <Alert variant="destructive" className="mt-2">
-                      <AlertDescription>{errors[portfolio.id]?.message}</AlertDescription>
+                      <AlertDescription>{errors[portfolio.id]?.message?.toString()}</AlertDescription>
                     </Alert>
                   )}
                 </CardHeader>
@@ -450,7 +458,7 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
                               ? "border-blue-500 bg-blue-50 shadow-md"
                               : "border-gray-200 hover:border-gray-300"
                           }`}
-                          onClick={() => handleCandidateSelect(portfolio.id, candidate.id)}
+                          onClick={() => handleCandidateSelect(portfolio.id, candidate.id!)}
                         >
                           {isSelected && (
                             <div className="absolute top-2 right-2">
@@ -467,9 +475,8 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
                             </div>
                             <div>
                               <h3 className="font-semibold text-lg text-gray-900">
-                                {candidate.firstName} {candidate.lastName}
+                                {candidate.firstName} {candidate?.middleName || ""} {candidate.lastName}
                               </h3>
-                              <p className="text-sm text-gray-600 mt-1 line-clamp-3">{candidate.bio}</p>
                             </div>
                           </div>
                         </div>
@@ -493,13 +500,15 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
                     <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
                       <h3 className="font-semibold mb-3">Your Current Selections:</h3>
                       <div className="space-y-2 text-sm">
-                        {portfoliosData.map((portfolio) => {
+                        {activePortfolios.map((portfolio) => {
                           const candidate = getSelectedCandidateInfo(portfolio.id);
                           return candidate ? (
                             <div key={portfolio.id} className="flex justify-between">
-                              <span className="text-gray-600">{portfolio.title}:</span>
+                              <span className="text-gray-600">
+                                {Categories[portfolio.title as keyof typeof Categories]}:
+                              </span>
                               <span className="font-medium">
-                                {candidate.firstName} {candidate.lastName}
+                                {candidate.firstName} {candidate?.middleName || ""} {candidate.lastName}
                               </span>
                             </div>
                           ) : null;
@@ -527,7 +536,7 @@ export function VotingInterface({ user }: VotingInterfaceProps) {
             onClose={() => setShowConfirmation(false)}
             onConfirm={confirmSubmission}
             selections={selectedCandidates}
-            portfolios={portfoliosData}
+            portfolios={activePortfolios}
           />
         </>
       )}
