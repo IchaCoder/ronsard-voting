@@ -1,20 +1,22 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useForm, useFieldArray } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { Plus, Trash2, Upload } from "lucide-react"
+import { useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Plus, Trash2, Upload, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Categories } from "@/utils/enums";
+import { useToast } from "@/hooks/use-toast";
+import { AddCandidate } from "@/app/actions/candidate/add";
 
 const candidateSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -22,36 +24,24 @@ const candidateSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   portfolio: z.string().min(1, "Portfolio is required"),
   image: z.any().optional(),
-  bio: z.string().optional(),
-})
+});
 
 const candidatesFormSchema = z.object({
   candidates: z.array(candidateSchema).min(1, "At least one candidate is required"),
-})
+});
 
-type CandidatesFormData = z.infer<typeof candidatesFormSchema>
-
-const portfolios = [
-  "Student Council President",
-  "Vice President",
-  "Secretary",
-  "Treasurer",
-  "Sports Captain",
-  "Head Boy/Girl",
-  "Class Representative",
-  "Library Prefect",
-]
+export type CandidatesFormData = z.infer<typeof candidatesFormSchema>;
 
 export function CandidateManagement() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null]);
 
   const {
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     watch,
     setValue,
     reset,
@@ -64,43 +54,89 @@ export function CandidateManagement() {
           middleName: "",
           lastName: "",
           portfolio: "",
-          bio: "",
         },
       ],
     },
-  })
+  });
 
   const { fields, append, remove } = useFieldArray({
     control,
     name: "candidates",
-  })
+  });
 
   const handleImageUpload = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    const file = event.target.files?.[0];
     if (file) {
-      setValue(`candidates.${index}.image`, file)
+      setValue(`candidates.${index}.image`, file);
+
+      // Create URL for image preview
+      const previewUrl = URL.createObjectURL(file);
+
+      // Update image previews array
+      const newPreviews = [...imagePreviews];
+      while (newPreviews.length <= index) {
+        newPreviews.push(null);
+      }
+      newPreviews[index] = previewUrl;
+      setImagePreviews(newPreviews);
     }
-  }
+  };
+
+  const { toast } = useToast();
+
+  const removeImage = (index: number) => {
+    setValue(`candidates.${index}.image`, undefined);
+    const newPreviews = [...imagePreviews];
+    newPreviews[index] = null;
+    setImagePreviews(newPreviews);
+  };
 
   const onSubmit = async (data: CandidatesFormData) => {
-    setIsLoading(true)
-    setError(null)
-    setSuccess(null)
+    let hasError = false;
+    data.candidates.map((candidate, index) => {
+      // if image is undefined, show toast
+      if (!candidate.image) {
+        toast({
+          title: "Image Required",
+          description: `Candidate ${index + 1} is missing an image.`,
+          variant: "destructive",
+        });
+        hasError = true;
+      }
+    });
+    if (hasError) {
+      return;
+    }
+    setError(null);
+    setSuccess(null);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const { success, message } = await AddCandidate(data.candidates);
 
-      console.log("Candidates data:", data)
+      if (!success) {
+        toast({
+          title: "Error",
+          description: message || "Failed to add candidates. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      setSuccess(`Successfully added ${data.candidates.length} candidate(s)!`)
-      reset()
+      toast({
+        title: "Success",
+        description: message || "Candidates added successfully!",
+      });
+
+      reset();
+      setImagePreviews([]);
     } catch (err) {
-      setError("Failed to add candidates. Please try again.")
-    } finally {
-      setIsLoading(false)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while adding candidates.",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
   const addCandidate = () => {
     append({
@@ -108,9 +144,11 @@ export function CandidateManagement() {
       middleName: "",
       lastName: "",
       portfolio: "",
-      bio: "",
-    })
-  }
+    });
+
+    // Add a null placeholder in the previews array for the new candidate
+    setImagePreviews([...imagePreviews, null]);
+  };
 
   return (
     <div className="space-y-6">
@@ -200,9 +238,9 @@ export function CandidateManagement() {
                             <SelectValue placeholder="Select portfolio" />
                           </SelectTrigger>
                           <SelectContent>
-                            {portfolios.map((portfolio) => (
-                              <SelectItem key={portfolio} value={portfolio}>
-                                {portfolio}
+                            {Object.entries(Categories).map(([key, value]) => (
+                              <SelectItem key={key} value={key}>
+                                {value}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -229,10 +267,30 @@ export function CandidateManagement() {
                             <Upload className="h-4 w-4" />
                             Upload Photo
                           </Label>
+
+                          {/* Show image preview if available */}
+                          {imagePreviews[index] && (
+                            <div className="relative ml-2">
+                              <div className="w-16 h-16 rounded-md overflow-hidden border border-gray-200">
+                                <img
+                                  src={imagePreviews[index] || ""}
+                                  alt="Candidate preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeImage(index)}
+                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                                aria-label="Remove image"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-
                   </CardContent>
                 </Card>
               ))}
@@ -245,11 +303,11 @@ export function CandidateManagement() {
               </Button>
 
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => reset()} disabled={isLoading}>
+                <Button type="button" variant="outline" onClick={() => reset()} disabled={isSubmitting}>
                   Reset Form
                 </Button>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Adding Candidates..." : `Add ${fields.length} Candidate(s)`}
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding Candidates..." : `Add ${fields.length} Candidate(s)`}
                 </Button>
               </div>
             </div>
@@ -257,5 +315,5 @@ export function CandidateManagement() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
