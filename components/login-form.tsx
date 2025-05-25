@@ -69,7 +69,6 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);
-    console.log("Form submitted with data:", data);
 
     try {
       if (data.studentType === "secondary") {

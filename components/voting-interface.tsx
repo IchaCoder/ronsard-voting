@@ -14,11 +14,15 @@ import { User } from "@supabase/supabase-js";
 import { CandidateType } from "@/utils/types";
 import { portfoliosData } from "./data";
 import { Categories } from "@/utils/enums";
+import Link from "next/link";
+import { createClient } from "@/utils/supabase/client";
+import { voteAction } from "@/app/actions/candidate/vote";
+import { useToast } from "@/hooks/use-toast";
 
 // Voting schedule configuration - Update these times as needed
 const VOTING_CONFIG = {
   startTime: new Date("2025-05-25T03:00:00"), // December 20, 2024 at 8:00 AM
-  endTime: new Date("2025-05-25T17:00:00"), // December 20, 2024 at 5:00 PM
+  endTime: new Date("2025-05-25T23:00:00"), // December 20, 2024 at 5:00 PM
 };
 
 // Create validation schema dynamically based on portfolios
@@ -50,22 +54,25 @@ type VotingInterfaceProps = {
   candidates: CandidateType[];
 };
 
+interface GroupedCandidateType {
+  id: string;
+  candidates: CandidateType[];
+}
+
 export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
   const [selectedCandidates, setSelectedCandidates] = useState<Record<string, number>>({});
-  const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [votingStatus, setVotingStatus] = useState<VotingStatus>("not-started");
   const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [votingSchema, setVotingSchema] = useState(initialSchema);
+  const [isLoading, setIsLoading] = useState(false);
 
-  interface GroupedCandidateType {
-    id: string;
-    candidates: CandidateType[];
-  }
+  const supabase = createClient();
 
   const [groupedCandidates, setGroupedCandidates] = useState<GroupedCandidateType[]>([]);
+  const { toast } = useToast();
 
   // Transform candidates into grouped format by portfolio
   useEffect(() => {
@@ -104,7 +111,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
 
   const {
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
     setValue,
     trigger,
   } = useForm<VotingFormData>({
@@ -177,30 +184,35 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
 
   const onSubmit = async (data: VotingFormData) => {
     if (votingStatus !== "active") return;
-    // Log the submission data
-    console.log("Form submission data:", data);
+
     setShowConfirmation(true);
   };
 
   const confirmSubmission = async () => {
+    // setShowConfirmation(false);
+    console.log("Submitting votes:", selectedCandidates);
+
     setIsLoading(true);
-    setShowConfirmation(false);
-
     try {
-      // Simulate API call
-      // await new Promise((resolve) => setTimeout(resolve, 2000));
+      const { success, message } = await voteAction(selectedCandidates);
 
-      // Log the votes and the active portfolios for debugging
-      console.log("Votes submitted:", selectedCandidates);
-      console.log("Using grouped candidates:", groupedCandidates);
-      console.log("Transformed to active portfolios:", activePortfolios);
+      toast({
+        title: success ? "Votes Submitted" : "Submission Failed",
+        description: message,
+        variant: success ? "default" : "destructive",
+      });
 
-      setIsSubmitted(true);
-    } catch (error) {
-      console.error("Failed to submit votes:", error);
-    } finally {
+      if (success) {
+        setIsSubmitted(true);
+        setSelectedCandidates({}); // Clear selections after submission
+      }
       setIsLoading(false);
+    } catch (error) {
+      console.error("Error submitting votes:", error);
+      setIsLoading(false);
+      // Optionally show an error message to the user
     }
+    // setIsSubmitted(true);
   };
 
   const getSelectedCandidateInfo = (portfolioId: string) => {
@@ -351,6 +363,13 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
     );
   };
 
+  const logOut = async () => {
+    let { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
   if (isSubmitted) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -382,6 +401,9 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                 </div>
               </div>
               <p className="text-sm text-gray-500 mt-4">Results will be announced after the voting period ends.</p>
+              <Button variant={"ghost"} size={"lg"} className="mt-4" onClick={logOut}>
+                <Link href="/login">Go Home</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -517,8 +539,8 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                     </div>
                   )}
 
-                  <Button type="submit" size="lg" disabled={!isComplete || isLoading} className="px-8">
-                    {isLoading ? "Submitting..." : "Submit My Votes"}
+                  <Button type="submit" size="lg" disabled={!isComplete || isSubmitting} className="px-8">
+                    {isSubmitting ? "Submitting..." : "Submit My Votes"}
                   </Button>
 
                   {!isComplete && (
@@ -537,6 +559,7 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
             onConfirm={confirmSubmission}
             selections={selectedCandidates}
             portfolios={activePortfolios}
+            isLoading={isLoading}
           />
         </>
       )}

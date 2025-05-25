@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle } from "lucide-react";
 import { VotingFormData } from "./voting-interface";
+import { Categories } from "@/utils/enums";
 
 interface VoteConfirmationModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface VoteConfirmationModalProps {
   onConfirm: () => void;
   selections: Record<string, number>;
   portfolios: VotingFormData[];
+  isLoading: boolean;
 }
 
 export function VoteConfirmationModal({
@@ -27,6 +29,7 @@ export function VoteConfirmationModal({
   onConfirm,
   selections,
   portfolios,
+  isLoading,
 }: VoteConfirmationModalProps) {
   const getSelectedCandidateInfo = (portfolioId: string) => {
     const candidateId = selections[portfolioId];
@@ -70,7 +73,9 @@ export function VoteConfirmationModal({
                       className="w-10 h-10 rounded-full object-cover"
                     />
                     <div className="flex-1">
-                      <div className="text-sm font-medium">{portfolio.title}</div>
+                      <div className="text-sm font-medium">
+                        {Categories[portfolio.title as keyof typeof Categories]}
+                      </div>
                       <div className="text-sm text-gray-600">
                         {candidate.firstName} {candidate.lastName}
                       </div>
@@ -86,7 +91,7 @@ export function VoteConfirmationModal({
           <Button variant="outline" onClick={onClose}>
             Review Again
           </Button>
-          <Button onClick={onConfirm}>Confirm & Submit</Button>
+          <Button onClick={onConfirm}>{isLoading ? "Submitting..." : "Confirm and Submit"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

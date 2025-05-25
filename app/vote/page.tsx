@@ -12,6 +12,7 @@ export default async function VotePage() {
     data: { user },
     error,
   } = await supabase.auth.getUser();
+  console.log("User data:", user);
 
   const { data: candidatesData, error: candidatesError } = await supabase.from("candidates").select("*");
 

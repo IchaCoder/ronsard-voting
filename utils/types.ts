@@ -6,4 +6,5 @@ export type CandidateType = {
   image: string;
   created_at?: string;
   id?: number;
+  votes: number;
 };

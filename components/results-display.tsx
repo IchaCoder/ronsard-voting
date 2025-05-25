@@ -1,43 +1,106 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Trophy, Users, TrendingUp } from "lucide-react"
+import { useMemo, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Trophy, Users, TrendingUp } from "lucide-react";
+import { CandidateType } from "@/utils/types";
+import { Categories } from "@/utils/enums";
 
-// Mock data for demonstration
-const mockResults = {
-  "Student Council President": {
-    totalVotes: 145,
-    candidates: [
-      { name: "Sarah Johnson", votes: 67, percentage: 46.2, image: "/placeholder.svg?height=60&width=60" },
-      { name: "Michael Chen", votes: 45, percentage: 31.0, image: "/placeholder.svg?height=60&width=60" },
-      { name: "Emma Williams", votes: 33, percentage: 22.8, image: "/placeholder.svg?height=60&width=60" },
-    ],
-  },
-  "Sports Captain": {
-    totalVotes: 132,
-    candidates: [
-      { name: "David Rodriguez", votes: 78, percentage: 59.1, image: "/placeholder.svg?height=60&width=60" },
-      { name: "Lisa Thompson", votes: 54, percentage: 40.9, image: "/placeholder.svg?height=60&width=60" },
-    ],
-  },
-  "Head Boy/Girl": {
-    totalVotes: 156,
-    candidates: [
-      { name: "Alex Parker", votes: 89, percentage: 57.1, image: "/placeholder.svg?height=60&width=60" },
-      { name: "Jordan Smith", votes: 67, percentage: 42.9, image: "/placeholder.svg?height=60&width=60" },
-    ],
-  },
-}
+type ResultsProps = {
+  candidates: CandidateType[] | null;
+};
 
-export function ResultsDisplay() {
-  const [selectedPortfolio, setSelectedPortfolio] = useState<string>("Student Council President")
+export function ResultsDisplay({ candidates }: ResultsProps) {
+  const [selectedPortfolio, setSelectedPortfolio] = useState<string>("head_girl");
 
-  const currentResults = mockResults[selectedPortfolio as keyof typeof mockResults]
-  const winner = currentResults?.candidates[0]
+  const selectedResults = useMemo(() => {
+    const filtered = candidates?.filter((candidate) => candidate.portfolio === selectedPortfolio) || [];
+    const sortedCandidates = [...filtered].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+
+    // Calculate total votes
+    const totalVotes = sortedCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+
+    // Create formatted candidates array with percentages
+    const formattedCandidates = sortedCandidates.map((candidate) => {
+      const votes = candidate.votes || 0;
+      const percentage = totalVotes > 0 ? parseFloat(((votes / totalVotes) * 100).toFixed(1)) : 0;
+
+      return {
+        name: `${candidate.first_name} ${candidate.last_name}`,
+        votes: votes,
+        percentage: percentage,
+        image: candidate.image || "/placeholder.svg?height=60&width=60",
+      };
+    });
+
+    return {
+      totalVotes,
+      candidates: formattedCandidates,
+    };
+  }, [candidates, selectedPortfolio]);
+
+  const winner = selectedResults?.candidates?.[0];
+
+  const transformedResults = useMemo(() => {
+    if (!candidates || candidates.length === 0) return {};
+
+    // Group candidates by portfolio
+    const portfolioGroups: Record<string, CandidateType[]> = {};
+
+    candidates.forEach((candidate) => {
+      const portfolio = candidate.portfolio;
+      if (!portfolioGroups[portfolio]) {
+        portfolioGroups[portfolio] = [];
+      }
+      portfolioGroups[portfolio].push(candidate);
+    });
+
+    // Transform each portfolio group
+    const result: Record<
+      string,
+      {
+        totalVotes: number;
+        candidates: Array<{
+          name: string;
+          votes: number;
+          percentage: number;
+          image: string;
+        }>;
+      }
+    > = {};
+
+    Object.entries(portfolioGroups).forEach(([portfolio, portfolioCandidates]) => {
+      // Sort candidates by votes (highest first)
+      const sortedCandidates = [...portfolioCandidates].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+
+      // Calculate total votes for this portfolio
+      const totalVotes = sortedCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+
+      // Format each candidate
+      const formattedCandidates = sortedCandidates.map((candidate) => {
+        const votes = candidate.votes || 0;
+        const percentage = totalVotes > 0 ? parseFloat(((votes / totalVotes) * 100).toFixed(1)) : 0;
+
+        return {
+          name: `${candidate.first_name} ${candidate.last_name}`,
+          votes: votes,
+          percentage: percentage,
+          image: candidate.image || "/placeholder.svg?height=60&width=60",
+        };
+      });
+
+      // Add to result object
+      result[portfolio] = {
+        totalVotes,
+        candidates: formattedCandidates,
+      };
+    });
+
+    return result;
+  }, [candidates]);
 
   return (
     <div className="space-y-6">
@@ -52,8 +115,8 @@ export function ResultsDisplay() {
               <SelectValue placeholder="Select portfolio" />
             </SelectTrigger>
             <SelectContent>
-              {Object.keys(mockResults).map((portfolio) => (
-                <SelectItem key={portfolio} value={portfolio}>
+              {Object.entries(Categories).map(([key, portfolio]) => (
+                <SelectItem key={key} value={key}>
                   {portfolio}
                 </SelectItem>
               ))}
@@ -62,7 +125,7 @@ export function ResultsDisplay() {
         </div>
       </div>
 
-      {currentResults && (
+      {selectedResults && (
         <>
           {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-3">
@@ -72,7 +135,7 @@ export function ResultsDisplay() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{currentResults.totalVotes}</div>
+                <div className="text-2xl font-bold">{selectedResults?.totalVotes}</div>
                 <p className="text-xs text-muted-foreground">Cast for {selectedPortfolio}</p>
               </CardContent>
             </Card>
@@ -94,7 +157,7 @@ export function ResultsDisplay() {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{currentResults.candidates.length}</div>
+                <div className="text-2xl font-bold">{selectedResults?.candidates.length}</div>
                 <p className="text-xs text-muted-foreground">Running for this position</p>
               </CardContent>
             </Card>
@@ -104,14 +167,14 @@ export function ResultsDisplay() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Results for {selectedPortfolio}
+                Results for {Categories[selectedPortfolio as keyof typeof Categories]}
                 <Badge variant="secondary">Live</Badge>
               </CardTitle>
-              <CardDescription>Current standings based on {currentResults.totalVotes} votes cast</CardDescription>
+              <CardDescription>Current standings based on {selectedResults?.totalVotes} votes cast</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {currentResults.candidates.map((candidate, index) => (
+                {selectedResults?.candidates?.map((candidate, index) => (
                   <div key={candidate.name} className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -154,10 +217,10 @@ export function ResultsDisplay() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(mockResults).map(([portfolio, data]) => (
+                {Object.entries(transformedResults).map(([portfolio, data]) => (
                   <Card key={portfolio} className="cursor-pointer hover:shadow-md transition-shadow">
                     <CardContent className="p-4">
-                      <h4 className="font-semibold mb-2">{portfolio}</h4>
+                      <h4 className="font-semibold mb-2">{Categories[portfolio as keyof typeof Categories]}</h4>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>Total Votes:</span>
@@ -181,5 +244,5 @@ export function ResultsDisplay() {
         </>
       )}
     </div>
-  )
+  );
 }
