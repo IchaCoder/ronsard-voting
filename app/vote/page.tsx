@@ -1,7 +1,24 @@
-import { VotingInterface } from "@/components/voting-interface"
-import Image from "next/image"
+import Loading from "@/components/loading";
+import { VotingInterface } from "@/components/voting-interface";
+import { createClientServer } from "@/utils/supabase/server";
+import Image from "next/image";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-export default function VotePage() {
+export default async function VotePage() {
+  const supabase = await createClientServer();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (user?.user_metadata?.isDefaultPasswordChanged !== true) {
+    redirect("/change-password");
+  }
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -20,7 +37,7 @@ export default function VotePage() {
                 <p className="text-xs text-gray-600">Student Voting Portal</p>
               </div>
             </div>
-            <div className="text-sm text-gray-600">Welcome, Student</div>
+            <div className="text-sm text-gray-600">Welcome</div>
           </div>
         </div>
       </header>
@@ -32,8 +49,10 @@ export default function VotePage() {
             Select your preferred candidate for each portfolio. You can only vote once.
           </p>
         </div>
-        <VotingInterface />
+        <Suspense fallback={<Loading />}>
+          <VotingInterface user={user} />
+        </Suspense>
       </main>
     </div>
-  )
+  );
 }
