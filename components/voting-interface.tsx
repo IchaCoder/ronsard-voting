@@ -189,11 +189,23 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
   };
 
   const confirmSubmission = async () => {
-    // setShowConfirmation(false);
-    console.log("Submitting votes:", selectedCandidates);
+    setShowConfirmation(false);
 
     setIsLoading(true);
     try {
+      // get user data
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      console.log("User data:", userData.user);
+      if (userData && userData.user?.user_metadata?.hasVoted) {
+        toast({
+          title: "Already Voted",
+          description: "You have already submitted your votes. You cannot vote again.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { success, message } = await voteAction(selectedCandidates);
 
       toast({
@@ -205,14 +217,23 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
       if (success) {
         setIsSubmitted(true);
         setSelectedCandidates({}); // Clear selections after submission
+        // Update the user metadata to indicate voting has been completed
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { hasVoted: true },
+        });
+        if (updateError) {
+          toast({
+            title: "Error",
+            description: updateError.message || "Failed to update your voting status. Please try again later.",
+            variant: "destructive",
+          });
+        }
       }
       setIsLoading(false);
     } catch (error) {
       console.error("Error submitting votes:", error);
       setIsLoading(false);
-      // Optionally show an error message to the user
     }
-    // setIsSubmitted(true);
   };
 
   const getSelectedCandidateInfo = (portfolioId: string) => {
@@ -539,7 +560,12 @@ export function VotingInterface({ user, candidates }: VotingInterfaceProps) {
                     </div>
                   )}
 
-                  <Button type="submit" size="lg" disabled={!isComplete || isSubmitting} className="px-8">
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={!isComplete || isSubmitting || user?.user_metadata?.hasVoted}
+                    className="px-8"
+                  >
                     {isSubmitting ? "Submitting..." : "Submit My Votes"}
                   </Button>
 
