@@ -213,7 +213,6 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
           variant: "destructive",
         });
         setIsLoading(false);
-        setShowConfirmation(false);
         return;
       }
 
@@ -496,11 +495,11 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                       <div className="col-span-full">
                         <div className="flex flex-col items-center space-y-6 p-6 bg-gray-50 rounded-lg">
                           <div className="text-center space-y-4">
-                            <div className="relative mx-auto w-32 h-32">
+                            <div className="relative mx-auto w-44 h-[230px]">
                               <img
                                 src={portfolio.candidates[0].image || "/placeholder.svg"}
                                 alt={`${portfolio.candidates[0].first_name} ${portfolio.candidates[0].last_name}`}
-                                className="w-full h-full rounded-full object-cover border-2 border-gray-200"
+                                className="w-full h-full rounded-lg object-cover border-2 border-gray-200"
                               />
                             </div>
                             <div>
@@ -566,11 +565,11 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                               </div>
                             )}
                             <div className="text-center space-y-3">
-                              <div className="relative mx-auto w-32 h-32">
+                              <div className="relative mx-auto w-44 h-[230px]">
                                 <img
                                   src={candidate.image || "/placeholder.svg"}
                                   alt={`${candidate.first_name} ${candidate.last_name}`}
-                                  className="w-full h-full rounded-full object-cover border-2 border-gray-200"
+                                  className="w-full h-full rounded-lg object-cover border-2 border-gray-200"
                                 />
                               </div>
                               <div>

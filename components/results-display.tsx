@@ -14,7 +14,7 @@ type ResultsProps = {
 };
 
 export function ResultsDisplay({ candidates }: ResultsProps) {
-  const [selectedPortfolio, setSelectedPortfolio] = useState<string>("head_girl");
+  const [selectedPortfolio, setSelectedPortfolio] = useState<string>("school_head");
 
   const transformedResults = useMemo(() => {
     if (!candidates || candidates.length === 0) return {};
@@ -157,7 +157,9 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{currentResults.totalVotes}</div>
-                <p className="text-xs text-muted-foreground">Cast for {selectedPortfolio}</p>
+                <p className="text-xs text-muted-foreground">
+                  Cast for {Categories[selectedPortfolio as keyof typeof Categories]}
+                </p>
               </CardContent>
             </Card>
 
@@ -190,7 +192,7 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Results for {selectedPortfolio}
+                Results for {Categories[selectedPortfolio as keyof typeof Categories]}
                 <Badge variant="secondary">Live</Badge>
               </CardTitle>
               <CardDescription>Current standings based on {currentResults.totalVotes} votes cast</CardDescription>

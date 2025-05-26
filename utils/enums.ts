@@ -6,8 +6,8 @@
 // Library Prefect
 
 export const Categories = {
-  head_girl: "Head Girls Prefect",
-  head_boy: "Head Boys Prefect",
+  school_head: "School Head Prefect",
+  grounds: "Ground and Furniture Prefect",
   canteen: "Canteen Prefect",
   entertainment: "Entertainment Prefect",
   sports: "Sports Prefect",
