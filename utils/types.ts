@@ -5,8 +5,11 @@ export type CandidateType = {
   portfolio: string;
   image: string;
   created_at?: string;
-  id?: number;
+  id?: number | string;
   votes: number;
+  yes_votes?: number;
+  no_votes?: number;
+  vote?: string;
 };
 
 export type UserType = {

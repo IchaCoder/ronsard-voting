@@ -16,32 +16,74 @@ export const voteAction = async (selection: Record<string, number>) => {
       id: candidateId,
       portfolio_id: portfolioId,
     }));
+    console.log("Updates to be made:", updates);
 
     // Process each update
     for (const update of updates) {
-      // First, get the current candidate
-      const { data: candidate, error: fetchError } = await supabase
-        .from("candidates")
-        .select()
-        .eq("id", update.id)
-        .single();
+      // @ts-expect-error
+      if (update?.id?.vote === "yes") {
+        // fetch for single candidate with portfolio equals update.portfolio_id
+        const { data: candidate, error: fetchErrorr } = await supabase
+          .from("candidates")
+          .select()
+          // @ts-expect-error
+          .eq("id", update.id?.id)
+          .single();
+        if (fetchErrorr) {
+          console.error(`Error fetching candidate for portfolio ${update.portfolio_id}:`, fetchErrorr);
+          continue;
+        }
+        // // Now update the votes count
+        const { error: updateError } = await supabase
+          .from("candidates")
+          .update({ yes_votes: (candidate.yes_votes || 0) + 1 })
+          // @ts-expect-error
+          .eq("id", update.id?.id);
 
-      if (fetchError) {
-        console.error(`Error fetching candidate ${update.id}:`, fetchError);
-        continue;
-      }
+        if (updateError) {
+          console.error(`Error updating votes for candidate ${update.id}:`, updateError);
+        }
+        // @ts-expect-error
+      } else if (update?.id?.vote === "no") {
+        // fetch for single candidate with portfolio equals update.portfolio_id
+        const { data: candidate, error: fetchErrorr } = await supabase
+          .from("candidates")
+          .select()
+          // @ts-expect-error
+          .eq("id", update.id?.id)
+          .single();
+        if (fetchErrorr) {
+          console.error(`Error fetching candidate for portfolio ${update.portfolio_id}:`, fetchErrorr);
+          continue;
+        }
+        // Now update the votes count
+        const { error: updateError } = await supabase
+          .from("candidates")
+          .update({ no_votes: (candidate.no_votes || 0) + 1 })
+          // @ts-expect-error
+          .eq("id", update.id?.id);
+        if (updateError) {
+          console.error(`Error updating votes for candidate ${update.id}:`, updateError);
+        }
+      } else {
+        // Update the votes for the selected candidate
+        const { data: candidate, error: fetchError } = await supabase
+          .from("candidates")
+          .select()
+          .eq("id", update.id)
+          .single();
 
-      // Now update the votes count
-      const { error: updateError } = await supabase
-        .from("candidates")
-        .update({ votes: (candidate.votes || 0) + 1 })
-        .eq("id", update.id);
+        const { error: updateError } = await supabase
+          .from("candidates")
+          .update({ votes: (candidate.votes || 0) + 1 })
+          .eq("id", update.id);
 
-      if (updateError) {
-        console.error(`Error updating votes for candidate ${update.id}:`, updateError);
+        if (updateError) {
+          console.error(`Error fetching candidate ${update.id}:`, fetchError);
+          continue;
+        }
       }
     }
-
     return { success: true, message: "Votes updated successfully" };
   } catch (error: any) {
     return { success: false, message: error.message || "An error occurred while updating votes" };

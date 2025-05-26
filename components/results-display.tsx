@@ -16,34 +16,6 @@ type ResultsProps = {
 export function ResultsDisplay({ candidates }: ResultsProps) {
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("head_girl");
 
-  const selectedResults = useMemo(() => {
-    const filtered = candidates?.filter((candidate) => candidate.portfolio === selectedPortfolio) || [];
-    const sortedCandidates = [...filtered].sort((a, b) => (b.votes || 0) - (a.votes || 0));
-
-    // Calculate total votes
-    const totalVotes = sortedCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
-
-    // Create formatted candidates array with percentages
-    const formattedCandidates = sortedCandidates.map((candidate) => {
-      const votes = candidate.votes || 0;
-      const percentage = totalVotes > 0 ? parseFloat(((votes / totalVotes) * 100).toFixed(1)) : 0;
-
-      return {
-        name: `${candidate.first_name} ${candidate.last_name}`,
-        votes: votes,
-        percentage: percentage,
-        image: candidate.image || "/placeholder.svg?height=60&width=60",
-      };
-    });
-
-    return {
-      totalVotes,
-      candidates: formattedCandidates,
-    };
-  }, [candidates, selectedPortfolio]);
-
-  const winner = selectedResults?.candidates?.[0];
-
   const transformedResults = useMemo(() => {
     if (!candidates || candidates.length === 0) return {};
 
@@ -61,46 +33,95 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
     // Transform each portfolio group
     const result: Record<
       string,
-      {
-        totalVotes: number;
-        candidates: Array<{
-          name: string;
-          votes: number;
-          percentage: number;
-          image: string;
-        }>;
-      }
+      | {
+          totalVotes: number;
+          type: "multiple";
+          candidates: Array<{
+            name: string;
+            votes: number;
+            percentage: number;
+            image: string;
+          }>;
+        }
+      | {
+          totalVotes: number;
+          type: "single";
+          candidate: {
+            name: string;
+            image: string;
+            yesVotes: number;
+            noVotes: number;
+            yesPercentage: number;
+            noPercentage: number;
+          };
+        }
     > = {};
 
     Object.entries(portfolioGroups).forEach(([portfolio, portfolioCandidates]) => {
-      // Sort candidates by votes (highest first)
-      const sortedCandidates = [...portfolioCandidates].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+      // Determine if this is a single-candidate or multiple-candidate portfolio
+      if (portfolioCandidates.length === 1) {
+        // Single candidate case (yes/no voting)
+        const candidate = portfolioCandidates[0];
+        const yesVotes = candidate.yes_votes || 0;
+        const noVotes = candidate.no_votes || 0;
+        const totalVotes = yesVotes + noVotes;
 
-      // Calculate total votes for this portfolio
-      const totalVotes = sortedCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+        const yesPercentage = totalVotes > 0 ? parseFloat(((yesVotes / totalVotes) * 100).toFixed(1)) : 0;
+        const noPercentage = totalVotes > 0 ? parseFloat(((noVotes / totalVotes) * 100).toFixed(1)) : 0;
 
-      // Format each candidate
-      const formattedCandidates = sortedCandidates.map((candidate) => {
-        const votes = candidate.votes || 0;
-        const percentage = totalVotes > 0 ? parseFloat(((votes / totalVotes) * 100).toFixed(1)) : 0;
-
-        return {
-          name: `${candidate.first_name} ${candidate.last_name}`,
-          votes: votes,
-          percentage: percentage,
-          image: candidate.image || "/placeholder.svg?height=60&width=60",
+        // Add to result object
+        result[portfolio] = {
+          totalVotes,
+          type: "single",
+          candidate: {
+            name: `${candidate.first_name} ${candidate.last_name}`,
+            image: candidate.image || "/placeholder.svg?height=60&width=60",
+            yesVotes,
+            noVotes,
+            yesPercentage,
+            noPercentage,
+          },
         };
-      });
+      } else {
+        // Multiple candidates case
+        // Sort candidates by votes (highest first)
+        const sortedCandidates = [...portfolioCandidates].sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
-      // Add to result object
-      result[portfolio] = {
-        totalVotes,
-        candidates: formattedCandidates,
-      };
+        // Calculate total votes for this portfolio
+        const totalVotes = sortedCandidates.reduce((sum, candidate) => sum + (candidate.votes || 0), 0);
+
+        // Format each candidate
+        const formattedCandidates = sortedCandidates.map((candidate) => {
+          const votes = candidate.votes || 0;
+          const percentage = totalVotes > 0 ? parseFloat(((votes / totalVotes) * 100).toFixed(1)) : 0;
+
+          return {
+            name: `${candidate.first_name} ${candidate.last_name}`,
+            votes: votes,
+            percentage: percentage,
+            image: candidate.image || "/placeholder.svg?height=60&width=60",
+          };
+        });
+
+        // Add to result object
+        result[portfolio] = {
+          totalVotes,
+          type: "multiple",
+          candidates: formattedCandidates,
+        };
+      }
     });
 
     return result;
   }, [candidates]);
+
+  const currentResults = transformedResults[selectedPortfolio];
+  const winner =
+    currentResults?.type === "multiple"
+      ? currentResults.candidates[0]
+      : currentResults?.candidate?.yesPercentage > 50
+      ? { name: currentResults.candidate.name, percentage: currentResults.candidate.yesPercentage }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -115,9 +136,9 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
               <SelectValue placeholder="Select portfolio" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(Categories).map(([key, portfolio]) => (
-                <SelectItem key={key} value={key}>
-                  {portfolio}
+              {Object.keys(transformedResults).map((portfolio) => (
+                <SelectItem key={portfolio} value={portfolio}>
+                  {Categories[portfolio as keyof typeof Categories]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -125,7 +146,7 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
         </div>
       </div>
 
-      {selectedResults && (
+      {currentResults && (
         <>
           {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-3">
@@ -135,7 +156,7 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{selectedResults?.totalVotes}</div>
+                <div className="text-2xl font-bold">{currentResults.totalVotes}</div>
                 <p className="text-xs text-muted-foreground">Cast for {selectedPortfolio}</p>
               </CardContent>
             </Card>
@@ -157,7 +178,9 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{selectedResults?.candidates.length}</div>
+                <div className="text-2xl font-bold">
+                  {currentResults.type === "multiple" ? currentResults.candidates.length : 1}
+                </div>
                 <p className="text-xs text-muted-foreground">Running for this position</p>
               </CardContent>
             </Card>
@@ -167,45 +190,116 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Results for {Categories[selectedPortfolio as keyof typeof Categories]}
+                Results for {selectedPortfolio}
                 <Badge variant="secondary">Live</Badge>
               </CardTitle>
-              <CardDescription>Current standings based on {selectedResults?.totalVotes} votes cast</CardDescription>
+              <CardDescription>Current standings based on {currentResults.totalVotes} votes cast</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {selectedResults?.candidates?.map((candidate, index) => (
-                  <div key={candidate.name} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <img
-                            src={candidate.image || "/placeholder.svg"}
-                            alt={candidate.name}
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                          {index === 0 && (
-                            <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                              <Trophy className="w-3 h-3 text-white" />
-                            </div>
-                          )}
+              {currentResults.type === "multiple" ? (
+                <div className="space-y-6">
+                  {currentResults.candidates.map((candidate, index) => (
+                    <div key={candidate.name} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <img
+                              src={candidate.image || "/placeholder.svg"}
+                              alt={candidate.name}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                            {index === 0 && (
+                              <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
+                                <Trophy className="w-3 h-3 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-lg">{candidate.name}</h3>
+                            <p className="text-sm text-gray-600">
+                              {candidate.votes} votes ({candidate.percentage}%)
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-lg">{candidate.name}</h3>
-                          <p className="text-sm text-gray-600">
-                            {candidate.votes} votes ({candidate.percentage}%)
-                          </p>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">{candidate.votes}</div>
+                          <div className="text-sm text-gray-500">votes</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold">{candidate.votes}</div>
-                        <div className="text-sm text-gray-500">votes</div>
-                      </div>
+                      <Progress value={candidate.percentage} className="h-3" />
                     </div>
-                    <Progress value={candidate.percentage} className="h-3" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="text-center space-y-4 p-6 bg-gray-50 rounded-lg">
+                    <div className="relative mx-auto w-20 h-20">
+                      <img
+                        src={currentResults.candidate.image || "/placeholder.svg"}
+                        alt={currentResults.candidate.name}
+                        className="w-full h-full rounded-full object-cover border-2 border-gray-200"
+                      />
+                      {currentResults.candidate.yesPercentage > 50 && (
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
+                          <Trophy className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-xl text-gray-900">{currentResults.candidate.name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">Single candidate - Yes/No voting</p>
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                          <div>
+                            <h4 className="font-semibold text-lg text-green-700">YES</h4>
+                            <p className="text-sm text-gray-600">
+                              {currentResults.candidate.yesVotes} votes ({currentResults.candidate.yesPercentage}%)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-700">{currentResults.candidate.yesVotes}</div>
+                          <div className="text-sm text-gray-500">votes</div>
+                        </div>
+                      </div>
+                      <Progress value={currentResults.candidate.yesPercentage} className="h-3" />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+                          <div>
+                            <h4 className="font-semibold text-lg text-red-700">NO</h4>
+                            <p className="text-sm text-gray-600">
+                              {currentResults.candidate.noVotes} votes ({currentResults.candidate.noPercentage}%)
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-red-700">{currentResults.candidate.noVotes}</div>
+                          <div className="text-sm text-gray-500">votes</div>
+                        </div>
+                      </div>
+                      <Progress value={currentResults.candidate.noPercentage} className="h-3" />
+                    </div>
+                  </div>
+
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800">
+                      {currentResults.candidate.yesPercentage > 50
+                        ? `${currentResults.candidate.name} has been APPROVED with ${currentResults.candidate.yesPercentage}% support`
+                        : `${currentResults.candidate.name} has been REJECTED with only ${currentResults.candidate.yesPercentage}% support`}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -226,14 +320,35 @@ export function ResultsDisplay({ candidates }: ResultsProps) {
                           <span>Total Votes:</span>
                           <span className="font-medium">{data.totalVotes}</span>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Leading:</span>
-                          <span className="font-medium">{data.candidates[0].name}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Lead Margin:</span>
-                          <span className="font-medium">{data.candidates[0].percentage}%</span>
-                        </div>
+                        {data.type === "multiple" ? (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span>Leading:</span>
+                              <span className="font-medium">{data.candidates[0].name}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Lead Margin:</span>
+                              <span className="font-medium">{data.candidates[0].percentage}%</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span>Candidate:</span>
+                              <span className="font-medium">{data.candidate.name}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Approval:</span>
+                              <span
+                                className={`font-medium ${
+                                  data.candidate.yesPercentage > 50 ? "text-green-600" : "text-red-600"
+                                }`}
+                              >
+                                {data.candidate.yesPercentage}% YES
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

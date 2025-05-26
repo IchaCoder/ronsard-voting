@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock, Users, AlertCircle } from "lucide-react";
 import { VoteConfirmationModal } from "@/components/vote-confirmation-modal";
-import { User } from "@supabase/supabase-js";
 import { CandidateType } from "@/utils/types";
 import { portfoliosData } from "./data";
 import { Categories } from "@/utils/enums";
@@ -29,7 +28,10 @@ const VOTING_CONFIG = {
 const createVotingSchema = (portfolios: any[]) => {
   const schemaObject: Record<string, any> = {};
   portfolios.forEach((portfolio) => {
-    schemaObject[portfolio.id] = z.number().min(1, `Please select a candidate for ${portfolio.title}`);
+    schemaObject[portfolio.id] = z.union([
+      z.string().min(1, `Please select a candidate for ${portfolio.title}`),
+      z.number().min(1, `Please select a candidate for ${portfolio.title}`),
+    ]);
   });
   return z.object(schemaObject);
 };
@@ -60,7 +62,8 @@ interface GroupedCandidateType {
 }
 
 export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
-  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, number>>({});
+  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, number | string>>({});
+
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -173,11 +176,20 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
     return parts.join(" ") || "0s";
   };
 
-  const handleCandidateSelect = async (portfolioId: string, candidateId: number) => {
+  const handleCandidateSelect = async (portfolioId: string, candidateId: string | number, vote?: string) => {
     if (votingStatus !== "active") return;
 
-    const newSelections = { ...selectedCandidates, [portfolioId]: candidateId };
-    setSelectedCandidates(newSelections);
+    const newSelections = vote
+      ? {
+          ...selectedCandidates,
+          [portfolioId]: {
+            id: candidateId,
+            vote: vote,
+          },
+        }
+      : { ...selectedCandidates, [portfolioId]: candidateId };
+
+    setSelectedCandidates(newSelections as Record<string, number | string>);
     setValue(portfolioId, candidateId);
     await trigger(portfolioId);
   };
@@ -201,9 +213,11 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
           variant: "destructive",
         });
         setIsLoading(false);
+        setShowConfirmation(false);
         return;
       }
 
+      // @ts-expect-error
       const { success, message } = await voteAction(selectedCandidates);
 
       toast({
@@ -241,33 +255,24 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
   };
 
   const getSelectedCandidateInfo = (portfolioId: string) => {
-    const candidateId = selectedCandidates[portfolioId];
+    const selection = selectedCandidates[portfolioId];
+    if (!selection) return null;
 
-    if (!candidateId) return null;
+    const portfolio = groupedCandidates.find((p) => p.id === portfolioId);
 
-    // Try finding in grouped candidates first (real data)
-    const realPortfolio = groupedCandidates.find((p) => p.id === portfolioId);
-    if (realPortfolio) {
-      const foundCandidate = realPortfolio.candidates.find(
-        (c) =>
-          // Use either the id directly or create one from first and last name
-          c.id === candidateId
-      );
+    if (!portfolio) return null;
 
-      if (foundCandidate) {
-        // Return in a compatible format
-        return {
-          id:
-            foundCandidate.id || `${foundCandidate.first_name.toLowerCase()}-${foundCandidate.last_name.toLowerCase()}`,
-          firstName: foundCandidate.first_name,
-          lastName: foundCandidate.last_name,
-          image: foundCandidate.image,
-          middleName: foundCandidate.middle_name || "",
-        };
-      }
+    // Handle Yes/No voting for single candidates
+    if (portfolio.candidates.length === 1) {
+      return {
+        ...portfolio.candidates[0],
+        // @ts-expect-error
+        vote: selection?.vote === "yes" ? "YES" : "NO",
+      };
     }
 
-    return null; // Fallback if not found
+    // Handle regular candidate selection
+    return portfolio.candidates.find((c) => c.id === selection);
   };
 
   const totalSelections = Object.keys(selectedCandidates).length;
@@ -411,7 +416,7 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                           {Categories[portfolio.title as keyof typeof Categories]}:
                         </span>
                         <span className="font-medium text-green-800">
-                          {candidate.firstName} {candidate.middleName || ""} {candidate.lastName}
+                          {candidate.first_name} {candidate.middle_name || ""} {candidate.last_name}
                         </span>
                       </div>
                     ) : null;
@@ -464,14 +469,12 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
           </Card>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-            {activePortfolios.map((portfolio) => (
+            {groupedCandidates.map((portfolio) => (
               <Card key={portfolio.id} className="overflow-hidden">
                 <CardHeader className="bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl">
-                        {Categories[portfolio.title as keyof typeof Categories]}
-                      </CardTitle>
+                      <CardTitle className="text-xl">{Categories[portfolio.id as keyof typeof Categories]}</CardTitle>
                     </div>
                     {selectedCandidates[portfolio.id] && (
                       <Badge className="bg-green-100 text-green-800">
@@ -488,40 +491,98 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                 </CardHeader>
                 <CardContent className="p-6">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {portfolio.candidates.map((candidate) => {
-                      const isSelected = selectedCandidates[portfolio.id] === candidate.id;
-                      return (
-                        <div
-                          key={candidate.id}
-                          className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all hover:shadow-md ${
-                            isSelected
-                              ? "border-blue-500 bg-blue-50 shadow-md"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                          onClick={() => handleCandidateSelect(portfolio.id, candidate.id!)}
-                        >
-                          {isSelected && (
-                            <div className="absolute top-2 right-2">
-                              <CheckCircle className="h-5 w-5 text-blue-600" />
-                            </div>
-                          )}
-                          <div className="text-center space-y-3">
-                            <div className="relative mx-auto w-40 h-40">
+                    {portfolio.candidates.length === 1 ? (
+                      // Single candidate - Yes/No voting
+                      <div className="col-span-full">
+                        <div className="flex flex-col items-center space-y-6 p-6 bg-gray-50 rounded-lg">
+                          <div className="text-center space-y-4">
+                            <div className="relative mx-auto w-32 h-32">
                               <img
-                                src={candidate.image || "/placeholder.svg"}
-                                alt={`${candidate.firstName} ${candidate.lastName}`}
+                                src={portfolio.candidates[0].image || "/placeholder.svg"}
+                                alt={`${portfolio.candidates[0].first_name} ${portfolio.candidates[0].last_name}`}
                                 className="w-full h-full rounded-full object-cover border-2 border-gray-200"
                               />
                             </div>
                             <div>
-                              <h3 className="font-semibold text-lg text-gray-900">
-                                {candidate.firstName} {candidate?.middleName || ""} {candidate.lastName}
+                              <h3 className="font-semibold text-xl text-gray-900">
+                                {portfolio.candidates[0].first_name} {portfolio.candidates[0].middle_name || ""}{" "}
+                                {portfolio.candidates[0].last_name}
                               </h3>
                             </div>
                           </div>
+
+                          <div className="flex gap-4 w-full max-w-md">
+                            <div
+                              className={`flex-1 cursor-pointer rounded-lg border-2 p-4 text-center transition-all hover:shadow-md ${
+                                // @ts-expect-error
+                                selectedCandidates[portfolio.id]?.vote === "yes"
+                                  ? "border-green-500 bg-green-50 shadow-md"
+                                  : "border-gray-200 hover:border-gray-300"
+                              }`}
+                              onClick={() => handleCandidateSelect(portfolio.id, portfolio.candidates?.[0]?.id!, "yes")}
+                            >
+                              {selectedCandidates[portfolio.id] === "yes" && (
+                                <CheckCircle className="h-5 w-5 text-green-600 mx-auto mb-2" />
+                              )}
+                              <div className="font-semibold text-green-700">YES</div>
+                              <div className="text-xs text-gray-600 mt-1">Support this candidate</div>
+                            </div>
+
+                            <div
+                              className={`flex-1 cursor-pointer rounded-lg border-2 p-4 text-center transition-all hover:shadow-md ${
+                                // @ts-expect-error
+                                selectedCandidates[portfolio.id]?.vote === "no"
+                                  ? "border-red-500 bg-red-50 shadow-md"
+                                  : "border-gray-200 hover:border-gray-300"
+                              }`}
+                              onClick={() => handleCandidateSelect(portfolio.id, portfolio.candidates?.[0]?.id!, "no")}
+                            >
+                              {selectedCandidates[portfolio.id] === "no" && (
+                                <CheckCircle className="h-5 w-5 text-red-600 mx-auto mb-2" />
+                              )}
+                              <div className="font-semibold text-red-700">NO</div>
+                              <div className="text-xs text-gray-600 mt-1">Do not support</div>
+                            </div>
+                          </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ) : (
+                      // Multiple candidates - regular selection
+                      portfolio.candidates.map((candidate) => {
+                        const isSelected = selectedCandidates[portfolio.id] === candidate.id;
+                        return (
+                          <div
+                            key={candidate.id}
+                            className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all hover:shadow-md ${
+                              isSelected
+                                ? "border-blue-500 bg-blue-50 shadow-md"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => handleCandidateSelect(portfolio.id, candidate.id!)}
+                          >
+                            {isSelected && (
+                              <div className="absolute top-2 right-2">
+                                <CheckCircle className="h-5 w-5 text-blue-600" />
+                              </div>
+                            )}
+                            <div className="text-center space-y-3">
+                              <div className="relative mx-auto w-32 h-32">
+                                <img
+                                  src={candidate.image || "/placeholder.svg"}
+                                  alt={`${candidate.first_name} ${candidate.last_name}`}
+                                  className="w-full h-full rounded-full object-cover border-2 border-gray-200"
+                                />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-lg text-gray-900">
+                                  {candidate.first_name} {candidate.last_name}
+                                </h3>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -540,15 +601,19 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                     <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
                       <h3 className="font-semibold mb-3">Your Current Selections:</h3>
                       <div className="space-y-2 text-sm">
-                        {activePortfolios.map((portfolio) => {
+                        {groupedCandidates.map((portfolio) => {
                           const candidate = getSelectedCandidateInfo(portfolio.id);
                           return candidate ? (
                             <div key={portfolio.id} className="flex justify-between">
                               <span className="text-gray-600">
-                                {Categories[portfolio.title as keyof typeof Categories]}:
+                                {Categories[portfolio.id as keyof typeof Categories]}:
                               </span>
                               <span className="font-medium">
-                                {candidate.firstName} {candidate?.middleName || ""} {candidate.lastName}
+                                {portfolio.candidates.length === 1
+                                  ? `${candidate.first_name} ${candidate.middle_name || ""} ${candidate.last_name} (${
+                                      candidate?.vote || "Not Voted"
+                                    })`
+                                  : `${candidate.first_name} ${candidate.middle_name} ${candidate.last_name}`}
                               </span>
                             </div>
                           ) : null;
@@ -557,8 +622,8 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                     </div>
                   )}
 
-                  <Button type="submit" size="lg" disabled={!isComplete || isSubmitting} className="px-8">
-                    {isSubmitting ? "Submitting..." : "Submit My Votes"}
+                  <Button type="submit" size="lg" disabled={!isComplete || isLoading} className="px-8">
+                    {isLoading ? "Submitting..." : "Submit My Votes"}
                   </Button>
 
                   {!isComplete && (

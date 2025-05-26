@@ -18,7 +18,7 @@ interface VoteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  selections: Record<string, number>;
+  selections: Record<string, number | string>;
   portfolios: VotingFormData[];
   isLoading: boolean;
 }
@@ -36,8 +36,11 @@ export function VoteConfirmationModal({
     if (!candidateId) return null;
 
     const portfolio = portfolios.find((p) => p.id === portfolioId);
+
     // @ts-expect-error
-    return portfolio?.candidates.find((c) => c.id === candidateId);
+    return portfolio.candidates.length === 1
+      ? portfolio?.candidates[0]
+      : portfolio?.candidates.find((c: any) => c.id === candidateId);
   };
 
   return (
@@ -78,6 +81,17 @@ export function VoteConfirmationModal({
                       </div>
                       <div className="text-sm text-gray-600">
                         {candidate.firstName} {candidate.lastName}
+                        <span className="ml-2 font-bold">
+                          {
+                            // @ts-expect-error
+                            selections[portfolio.id]?.vote === "yes"
+                              ? "Yes"
+                              : // @ts-expect-error
+                              selections[portfolio.id]?.vote === "no"
+                              ? "No"
+                              : ""
+                          }
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -91,7 +105,9 @@ export function VoteConfirmationModal({
           <Button variant="outline" onClick={onClose}>
             Review Again
           </Button>
-          <Button onClick={onConfirm}>{isLoading ? "Submitting..." : "Confirm and Submit"}</Button>
+          <Button disabled={isLoading} onClick={onConfirm}>
+            {isLoading ? "Submitting..." : "Confirm and Submit"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
