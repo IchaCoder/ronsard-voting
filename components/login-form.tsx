@@ -92,7 +92,7 @@ export function LoginForm() {
               className={errors.pin ? "border-red-500" : ""}
             />
             {errors.pin && <p className="text-sm text-red-500">{errors.pin.message}</p>}
-            <p className="text-xs text-gray-500">Enter the unique PIN provided by your teacher</p>
+            <p className="text-xs text-gray-500">Enter the unique PIN provided by IT</p>
           </div>
         </CardContent>
 
