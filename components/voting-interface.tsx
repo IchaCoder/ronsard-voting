@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 // Voting schedule configuration - Update these times as needed
 const VOTING_CONFIG = {
   startTime: new Date("2025-05-26T08:00:00"), // December 20, 2024 at 8:00 AM
-  endTime: new Date("2025-05-27T20:00:00"), // December 20, 2024 at 5:00 PM
+  endTime: new Date("2025-05-27T22:00:00"), // December 20, 2024 at 5:00 PM
 };
 
 // Create validation schema dynamically based on portfolios
@@ -574,7 +574,7 @@ export function VotingInterface({ candidates, pin }: VotingInterfaceProps) {
                               </div>
                               <div>
                                 <h3 className="font-semibold text-lg text-gray-900">
-                                  {candidate.first_name} {candidate.last_name}
+                                  {candidate.first_name} {candidate.middle_name || ""} {candidate.last_name}
                                 </h3>
                               </div>
                             </div>
