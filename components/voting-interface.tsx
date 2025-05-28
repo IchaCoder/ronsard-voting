@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 // Voting schedule configuration - Update these times as needed
 const VOTING_CONFIG = {
   startTime: new Date("2025-05-28T08:00:00"), // May 28, 2025 at 8:00 AM
-  endTime: new Date("2025-05-28T14:30:00"), // May 28, 2025 at 2:30 PM
+  endTime: new Date("2025-05-28T14:45:00"), // May 28, 2025 at 2:30 PM
 };
 
 // Create validation schema dynamically based on portfolios
